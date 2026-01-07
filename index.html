@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>DSP Calc - 多层级拆解</title>
+  <style>
+    body {
+      font-family: system-ui;
+      padding: 24px;
+      max-width: 800px;
+      margin: auto;
+    }
+    input, button {
+      padding: 6px 10px;
+      margin: 6px 0;
+    }
+    pre {
+      background: #f6f6f6;
+      padding: 12px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>DSP 量化计算器（多层级拆解）</h1>
+
+<label>
+  电路板产量（个 / 分钟）：
+  <input id="rate" type="number" value="60" />
+</label>
+<br />
+<button onclick="run()">计算</button>
+
+<h3>计算结果</h3>
+<pre id="output"></pre>
+
+<script>
+/**
+ * =========================
+ * 1️⃣ 机器数据
+ * =========================
+ */
+const machines = {
+  Furnace: { speed: 1 },
+  Assembler: { speed: 1 }
+};
+
+/**
+ * =========================
+ * 2️⃣ 配方表（核心）
+ * =========================
+ */
+const recipes = {
+  IronPlate: {
+    time: 1,
+    machine: 'Furnace',
+    inputs: { IronOre: 1 },
+    outputs: { IronPlate: 1 }
+  },
+  CopperPlate: {
+    time: 1,
+    machine: 'Furnace',
+    inputs: { CopperOre: 1 },
+    outputs: { CopperPlate: 1 }
+  },
+  CopperWire: {
+    time: 1,
+    machine: 'Assembler',
+    inputs: { CopperPlate: 1 },
+    outputs: { CopperWire: 2 }
+  },
+  CircuitBoard: {
+    time: 1,
+    machine: 'Assembler',
+    inputs: {
+      IronPlate: 1,
+      CopperWire: 2
+    },
+    outputs: { CircuitBoard: 1 }
+  }
+};
+
+/**
+ * =========================
+ * 3️⃣ 递归拆解引擎
+ * =========================
+ */
+function breakdown(product, ratePerSecond, summary) {
+  // 物料需求累计
+  summary.items[product] =
+    (summary.items[product] || 0) + ratePerSecond;
+
+  const recipe = recipes[product];
+  if (!recipe) return; // 原矿
+
+  const machine = machines[recipe.machine];
+  const outputRate =
+    (recipe.outputs[product] / recipe.time) * machine.speed;
+
+  const machineCount = ratePerSecond / outputRate;
+  summary.machines[recipe.machine] =
+    (summary.machines[recipe.machine] || 0) + machineCount;
+
+  for (const input in recipe.inputs) {
+    const inputRate =
+      recipe.inputs[input] *
+      (ratePerSecond / recipe.outputs[product]);
+    breakdown(input, inputRate, summary);
+  }
+}
+
+/**
+ * =========================
+ * 4️⃣ 执行入口
+ * =========================
+ */
+function run() {
+  const perMinute = Number(document.getElementById('rate').value);
+  const perSecond = perMinute / 60;
+
+  const summary = { items: {}, machines: {} };
+  breakdown('CircuitBoard', perSecond, summary);
+
+  let text = '【物料需求（个 / 分钟）】\n';
+  for (const k in summary.items) {
+    text += `${k}: ${(summary.items[k] * 60).toFixed(2)}\n`;
+  }
+
+  text += '\n【机器需求】\n';
+  for (const k in summary.machines) {
+    text += `${k}: ${summary.machines[k].toFixed(2)} 台\n`;
+  }
+
+  document.getElementById('output').textContent = text;
+}
+</script>
+
+</body>
+</html>
